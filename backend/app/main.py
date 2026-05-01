@@ -21,15 +21,16 @@ from app.routes.marketplace import router as marketplace_router
 async def lifespan(app: FastAPI):
     from app.core.db import SessionLocal, init_db
     from app.core.seed import run_seed
-    init_db()
-    
-    # Executa seed apenas se explicitamente solicitado ou em dev
-    if os.getenv("SEED_ON_STARTUP", "true").lower() == "true":
-        db = SessionLocal()
-        try:
-            run_seed(db)
-        finally:
-            db.close()
+    try:
+        init_db()
+        if os.getenv("SEED_ON_STARTUP", "true").lower() == "true":
+            db = SessionLocal()
+            try:
+                run_seed(db)
+            finally:
+                db.close()
+    except Exception as exc:
+        print(f"[startup] DB init failed (non-fatal): {exc}")
     yield
 
 
@@ -62,4 +63,5 @@ app.include_router(marketplace_router, prefix="/api")
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "version": "0.5.0"}
+    port = os.getenv("PORT", "?")
+    return {"status": "ok", "version": "0.5.0", "port": port}
