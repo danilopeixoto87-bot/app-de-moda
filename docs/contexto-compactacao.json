@@ -1,0 +1,28 @@
+{
+  "context_version": "1.0.0",
+  "region": "agreste_pe",
+  "city_codes": {
+    "Caruaru": "caruaru",
+    "Santa Cruz do Capibaribe": "scc",
+    "Toritama": "toritama"
+  },
+  "task_limits": {
+    "image_generation": {"max_chars": 1500, "max_tokens": 1200},
+    "content_generation": {"max_chars": 1200, "max_tokens": 900},
+    "smart_search": {"max_chars": 2000, "max_tokens": 700},
+    "order": {"max_chars": 800, "max_tokens": 500}
+  },
+  "required_variant_fields": [
+    "size_label",
+    "color_name",
+    "fabric_type"
+  ],
+  "image_prompt_suffix": [
+    "Rule of thirds composition",
+    "Negative space for copy",
+    "Photorealistic",
+    "Ultra-HD",
+    "8k",
+    "highly detailed"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "audit_meta": {
+    "project": "App de Moda - Polo PE",
+    "audit_type": "pre_sprint_full_system",
+    "date_iso": "YYYY-MM-DD",
+    "auditor": "claude_code",
+    "decision": "GO|NO_GO"
+  },
+  "executive_summary": {
+    "status_geral": "",
+    "principais_riscos": [
+      ""
+    ],
+    "justificativa_decisao": ""
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "CRITICO|ALTO|MEDIO|BAIXO",
+      "dominio": "Produto|Backend|Frontend|Dados|Seguranca|Logistica|Pagamento",
+      "titulo": "",
+      "evidencia": {
+        "arquivo": "",
+        "referencia": "linha/bloco/rota",
+        "descricao": ""
+      },
+      "impacto": "",
+      "acao_recomendada": "",
+      "esforco_estimado": "baixo|medio|alto",
+      "prioridade_execucao": 1
+    }
+  ],
+  "readiness_matrix": {
+    "produto": "PRONTO|PARCIAL|NAO_PRONTO",
+    "backend": "PRONTO|PARCIAL|NAO_PRONTO",
+    "frontend": "PRONTO|PARCIAL|NAO_PRONTO",
+    "dados": "PRONTO|PARCIAL|NAO_PRONTO",
+    "seguranca": "PRONTO|PARCIAL|NAO_PRONTO",
+    "logistica": "PRONTO|PARCIAL|NAO_PRONTO",
+    "pagamento": "PRONTO|PARCIAL|NAO_PRONTO"
+  },
+  "pre_sprint_backlog_80_20": [
+    {
+      "ordem": 1,
+      "item": "",
+      "objetivo": "",
+      "justificativa_impacto": "",
+      "criterio_aceite": "",
+      "dependencias": [
+        ""
+      ]
+    }
+  ],
+  "sprint_1_go_criteria": [
+    {
+      "check": "",
+      "status": "OK|PENDENTE"
+    }
+  ],
+  "nao_implementado": [
+    {
+      "tema": "",
+      "impacto": "",
+      "acao_minima": ""
+    }
+  ],
+  "riscos_operacionais": [
+    {
+      "risco": "",
+      "severidade": "ALTA|MEDIA|BAIXA",
+      "mitigacao": ""
+    }
+  ]
+}

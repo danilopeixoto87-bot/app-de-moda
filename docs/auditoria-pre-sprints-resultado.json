@@ -1,0 +1,498 @@
+{
+  "audit_meta": {
+    "project": "App de Moda - Polo PE",
+    "audit_type": "pre_sprint_full_system",
+    "date_iso": "2026-04-30",
+    "auditor": "claude_code",
+    "decision": "NO_GO"
+  },
+  "executive_summary": {
+    "status_geral": "Sistema estruturalmente coerente em termos de arquitetura e contratos de API, mas com bloqueadores críticos que inviabilizam qualquer piloto real: (1) todos os dados estão em memória RAM sem qualquer persistência em PostgreSQL apesar do schema e db.py existirem; (2) chave JWT hardcoded no fallback; (3) usuários hardcoded no código; (4) ausência de CORS; (5) MapaEmpresasPage.tsx usa dados MOCK locais e URLs hardcoded para localhost:8000. O sistema é um MVP funcional como demonstração em ambiente local, mas NÃO está pronto para produção ou piloto real com clientes.",
+    "principais_riscos": [
+      "Perda total de dados a cada reinicialização do servidor (ORDERS, LEADS, EXCURSION_CARRIERS, novos cadastros todos em memória)",
+      "JWT com SECRET_KEY padrão 'change-me-in-production' se variável de ambiente não for definida",
+      "Frontend MapaEmpresasPage chama localhost:8000 diretamente — quebra imediatamente em qualquer ambiente que não seja localhost do desenvolvedor",
+      "Nenhum endpoint de lista tem paginação — risco de timeout com volume real de dados",
+      "companies.py mutação de dicionário em memória compartilhada no cálculo de distância corrompe dados entre requests"
+    ],
+    "justificativa_decisao": "NO_GO: Três bloqueadores independentes entre si impossibilitam o sprint: ausência de persistência real (todos os dados somem no restart), falha de segurança crítica na chave JWT, e frontend desconectado da API real. Nenhum dos três pode ser contornado sem implementação — nenhum tem workaround aceitável para piloto com clientes reais."
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "CRITICO",
+      "dominio": "Dados",
+      "titulo": "Persistência zero — todos os dados em memória RAM, PostgreSQL não é utilizado",
+      "evidencia": {
+        "arquivo": "backend/app/routes/marketplace.py",
+        "referencia": "linhas 14-16: ORDERS: List[Dict] = []; LEADS: List[Dict] = []; EXCURSION_CARRIERS: List[Dict] = []",
+        "descricao": "Pedidos, leads e transportadores de excursão são listas Python em memória. O arquivo backend/app/core/db.py define SQLAlchemy+PostgreSQL mas nunca é importado por nenhum router. O schema.sql existe completo mas nenhuma migração ou ORM está conectado. Qualquer restart do servidor apaga todos os pedidos, transportadores cadastrados e leads gerados."
+      },
+      "impacto": "Operação impossível para piloto real. Um reinício de servidor, deploy ou crash destrói 100% dos dados transacionais.",
+      "acao_recomendada": "Implementar camada de persistência usando o db.py já existente: substituir as listas em memória por queries SQLAlchemy contra o schema.sql já definido. Prioridade máxima antes de qualquer sprint.",
+      "esforco_estimado": "alto",
+      "prioridade_execucao": 1
+    },
+    {
+      "id": "F-002",
+      "severity": "CRITICO",
+      "dominio": "Seguranca",
+      "titulo": "SECRET_KEY JWT com valor padrão inseguro hardcoded",
+      "evidencia": {
+        "arquivo": "backend/app/auth/security.py",
+        "referencia": "linha 10: SECRET_KEY = os.getenv('APP_SECRET_KEY', 'change-me-in-production')",
+        "descricao": "Se a variável de ambiente APP_SECRET_KEY não estiver definida no servidor, todos os tokens JWT são assinados com 'change-me-in-production'. Qualquer pessoa com acesso a este repositório pode forjar tokens válidos para qualquer perfil (admin, lojista, fabrica, cliente)."
+      },
+      "impacto": "Comprometimento total do sistema de autenticação. Atacante pode criar token admin sem credenciais e acessar todos os endpoints protegidos.",
+      "acao_recomendada": "Remover o fallback — lançar erro de inicialização se APP_SECRET_KEY não estiver definida. Gerar chave segura (32+ bytes aleatórios) e armazenar em variável de ambiente no servidor.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 2
+    },
+    {
+      "id": "F-003",
+      "severity": "CRITICO",
+      "dominio": "Seguranca",
+      "titulo": "Usuários hardcoded em dicionário Python com senha 123456 exposta no frontend",
+      "evidencia": {
+        "arquivo": "backend/app/auth/security.py",
+        "referencia": "linhas 17-22: USERS dict com 4 usuários fixos; frontend/features/mapa-empresas/PortalCentralPage.tsx linha 17: password='123456'",
+        "descricao": "Os únicos usuários do sistema são definidos em código Python. Não existe endpoint de registro, gestão de usuários ou banco de dados de usuários. A senha padrão '123456' está pré-preenchida no frontend como valor default do campo. Qualquer expansão de usuários exige alteração de código e redeploy."
+      },
+      "impacto": "Impossibilidade de onboarding real de lojistas/fábricas sem alteração de código. Exposição da senha seed no código-fonte do frontend.",
+      "acao_recomendada": "Criar tabela 'users' no PostgreSQL, migrar usuários seed, implementar endpoint POST /api/auth/register com roles, remover senha hardcoded do frontend.",
+      "esforco_estimado": "alto",
+      "prioridade_execucao": 3
+    },
+    {
+      "id": "F-004",
+      "severity": "CRITICO",
+      "dominio": "Backend",
+      "titulo": "Ausência de CORS — frontend de qualquer origem bloqueado pelo navegador em produção",
+      "evidencia": {
+        "arquivo": "backend/app/main.py",
+        "referencia": "linhas 1-16: nenhum CORSMiddleware configurado",
+        "descricao": "O FastAPI não tem CORSMiddleware registrado. Em ambiente de desenvolvimento local (localhost:3000 -> localhost:8000) funciona apenas se o navegador tiver restrições desabilitadas. Em produção (frontend em domínio diferente do backend), todos os requests do browser serão bloqueados com 'CORS policy' error antes de chegar ao servidor."
+      },
+      "impacto": "Frontend completamente inacessível ao backend em produção sem CORS configurado.",
+      "acao_recomendada": "Adicionar CORSMiddleware ao main.py com origins explícitos (não usar '*' em produção). Configurar via variável de ambiente ALLOWED_ORIGINS.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 4
+    },
+    {
+      "id": "F-005",
+      "severity": "ALTO",
+      "dominio": "Frontend",
+      "titulo": "MapaEmpresasPage.tsx usa dados MOCK locais e URLs hardcoded localhost:8000",
+      "evidencia": {
+        "arquivo": "frontend/features/mapa-empresas/MapaEmpresasPage.tsx",
+        "referencia": "linhas 15-19: const MOCK: Company[] = [...]; linhas 66-67: href='http://localhost:8000/api/companies/${c.id}/navigation-link'",
+        "descricao": "A página de mapa de empresas usa array MOCK hardcoded ao invés de chamar a API. Os botões 'Rota' e 'WhatsApp' abrem URLs com localhost:8000 explícito, que funciona apenas na máquina do desenvolvedor. Nenhum cliente real conseguirá usar esta página. Adicionalmente, não há mapa visual real — apenas lista de cards."
+      },
+      "impacto": "Funcionalidade core do produto (mapeamento de empresas) quebrada em qualquer ambiente além do localhost do desenvolvedor.",
+      "acao_recomendada": "Substituir MOCK pelo hook que chama GET /api/companies com os filtros existentes. Usar variável de ambiente NEXT_PUBLIC_API_BASE_URL ao invés de localhost:8000 hardcoded. A api.ts do mesmo feature já tem padrão correto para referência.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 5
+    },
+    {
+      "id": "F-006",
+      "severity": "ALTO",
+      "dominio": "Seguranca",
+      "titulo": "Endpoints sensíveis sem autenticação: /portal/search, /companies/*, /catalog/*, /portal/logistics/excursion-carriers",
+      "evidencia": {
+        "arquivo": "backend/app/routes/companies.py e backend/app/routes/catalog.py e backend/app/routes/marketplace.py",
+        "referencia": "companies.py linha 20: @router.get('/companies') sem Depends; catalog.py linha 10: @router.get('/catalog/products') sem Depends; marketplace.py linha 222: def centralized_search sem Depends; marketplace.py linha 166: def list_excursion_carriers sem Depends",
+        "descricao": "Quatro grupos de endpoints que expõem dados de empresas, catálogo completo, estoque, preços e transportadores de excursão (incluindo WhatsApp) operam sem nenhuma verificação de autenticação. Qualquer bot pode fazer scraping de todo o catálogo, preços e contatos de WhatsApp sem se identificar."
+      },
+      "impacto": "Exposição pública irrestrita de dados comerciais sensíveis (preços atacado, contatos, estoque). Risco de scraping e uso indevido por concorrentes.",
+      "acao_recomendada": "Definir política explícita por endpoint: dados de localização básica podem ser públicos, mas preços/estoque/contatos exigem autenticação mínima de 'cliente'. Adicionar Depends(get_current_user) nos endpoints sensíveis.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 6
+    },
+    {
+      "id": "F-007",
+      "severity": "ALTO",
+      "dominio": "Backend",
+      "titulo": "companies.py mutação do dicionário global COMPANIES durante cálculo de distância",
+      "evidencia": {
+        "arquivo": "backend/app/routes/companies.py",
+        "referencia": "linha 46: c['distance_km'] = round(_distance_km(lat, lng, c['latitude'], c['longitude']), 2)",
+        "descricao": "O campo 'distance_km' é inserido diretamente no dicionário da lista global COMPANIES. Como Python dicts são objetos por referência, cada request que envia lat/lng contamina permanentemente os objetos originais com valores de distância de requests anteriores. Requests subsequentes sem lat/lng retornarão dados com 'distance_km' de outro usuário."
+      },
+      "impacto": "Corrompimento de dados entre requests concorrentes. Bug de estado compartilhado que piora com carga. Em produção com múltiplos usuários, resultados incorretos e imprevisíveis.",
+      "acao_recomendada": "Usar shallow copy: substituir `for c in items` por `items = [{**c} for c in items]` antes de adicionar distance_km, garantindo que o objeto original não seja mutado.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 7
+    },
+    {
+      "id": "F-008",
+      "severity": "ALTO",
+      "dominio": "Backend",
+      "titulo": "Ausência de rate limiting no endpoint de login — vulnerável a brute force",
+      "evidencia": {
+        "arquivo": "backend/app/routes/auth.py",
+        "referencia": "linhas 14-20: @router.post('/auth/login') sem limitação de tentativas",
+        "descricao": "O endpoint POST /api/auth/login não tem qualquer proteção contra tentativas repetidas. Um atacante pode testar milhares de senhas por segundo. Com usuários hardcoded e emails previsíveis (admin@appmoda.local, lojista@appmoda.local), o vetor de ataque é trivial."
+      },
+      "impacto": "Comprometimento de contas por força bruta. Com TOKEN_EXPIRE de 24h, uma conta comprometida tem acesso prolongado.",
+      "acao_recomendada": "Implementar slowdown progressivo (slowapi ou similar) ou limite de 5 tentativas por IP por minuto. Adicionar campo de log de tentativas falhas.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 8
+    },
+    {
+      "id": "F-009",
+      "severity": "ALTO",
+      "dominio": "Seguranca",
+      "titulo": "Token JWT com expiração de 24h sem mecanismo de refresh ou revogação",
+      "evidencia": {
+        "arquivo": "backend/app/auth/security.py",
+        "referencia": "linha 12: ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '1440'))",
+        "descricao": "Tokens expiram em 24 horas por padrão. Não existe endpoint de refresh, nem blacklist de tokens revogados. Se uma conta for comprometida ou um funcionário demitido, o token permanece válido por até 24h sem possibilidade de invalidação imediata."
+      },
+      "impacto": "Janela de exposição de 24h após comprometimento de credenciais sem possibilidade de revogação.",
+      "acao_recomendada": "Reduzir ACCESS_TOKEN_EXPIRE_MINUTES para 60 minutos. Implementar refresh token com TTL maior (7 dias). Para revogação imediata, implementar token blacklist em Redis ou campo 'invalidated_at' no usuário.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 9
+    },
+    {
+      "id": "F-010",
+      "severity": "ALTO",
+      "dominio": "Backend",
+      "titulo": "Encoding de URL para WhatsApp incompleto — mensagens com caracteres especiais quebram",
+      "evidencia": {
+        "arquivo": "backend/app/routes/marketplace.py e backend/app/routes/companies.py",
+        "referencia": "marketplace.py linha 367: message.replace(' ', '%20'); companies.py linha 85: message.replace(' ', '%20')",
+        "descricao": "URLs do WhatsApp são construídas substituindo apenas espaços por %20. Caracteres como vírgula, ponto, parênteses, acentos e outros caracteres especiais presentes nos nomes de empresas, produtos e mensagens não são codificados. Isso produz URLs malformadas que podem falhar ou truncar a mensagem no WhatsApp."
+      },
+      "impacto": "Botões de WhatsApp quebrados com nomes de empresas com acentos (São Paulo, João, etc.) ou mensagens com pontuação.",
+      "acao_recomendada": "Substituir message.replace(' ', '%20') por urllib.parse.quote(message, safe='') em todos os pontos onde URLs de WhatsApp são construídas.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 10
+    },
+    {
+      "id": "F-011",
+      "severity": "MEDIO",
+      "dominio": "Backend",
+      "titulo": "catalog.py retorna HTTP 200 com body de erro ao invés de HTTPException 404",
+      "evidencia": {
+        "arquivo": "backend/app/routes/catalog.py",
+        "referencia": "linhas 66-67: if not product: return {'detail': 'Produto nao encontrado'}",
+        "descricao": "O endpoint GET /catalog/products/{product_id} retorna status 200 com JSON {'detail': 'Produto nao encontrado'} quando o produto não existe. O padrão correto é HTTPException com status 404. Isso quebra qualquer cliente que verifique o status code HTTP para tratar erros, incluindo o fetch do frontend que só lança erro para status não-OK."
+      },
+      "impacto": "Frontend trata produto inexistente como sucesso, podendo exibir dados vazios/undefined sem aviso de erro para o usuário.",
+      "acao_recomendada": "Substituir return {'detail': '...'} por raise HTTPException(status_code=404, detail='Produto nao encontrado'), seguindo o padrão já adotado em companies.py e marketplace.py.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 11
+    },
+    {
+      "id": "F-012",
+      "severity": "MEDIO",
+      "dominio": "Backend",
+      "titulo": "compact_context chamado com task='smart_search' durante criação de pedido",
+      "evidencia": {
+        "arquivo": "backend/app/routes/marketplace.py",
+        "referencia": "linha 325: compact = compact_context('smart_search', {...})",
+        "descricao": "Na rota POST /portal/orders, o compact_context é chamado com task='smart_search', que aplica limites e configurações de busca (max_chars: 2000, max_tokens: 700). A task correta seria 'order', mas essa task não existe no contexto-compactacao.json, resultando no fallback genérico. O contexto compactado retornado no pedido terá parâmetros incorretos."
+      },
+      "impacto": "Contexto de IA gerado nos pedidos usa limites de tokens errados. Impacto baixo agora, mas se IA de processamento de pedidos for integrada, produzirá resultados inconsistentes.",
+      "acao_recomendada": "Adicionar 'order' como task_limit no contexto-compactacao.json com parâmetros apropriados. Atualizar a chamada em marketplace.py linha 325 para usar task='order'.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 12
+    },
+    {
+      "id": "F-013",
+      "severity": "MEDIO",
+      "dominio": "Backend",
+      "titulo": "IDs sequenciais e previsíveis baseados em len() das listas em memória",
+      "evidencia": {
+        "arquivo": "backend/app/routes/marketplace.py",
+        "referencia": "linhas 125, 149, 180, 215, 336, 415: padrão f'cmp-{len(COMPANIES)+1:04d}', f'ord-{len(ORDERS)+1:05d}'",
+        "descricao": "Todos os IDs são gerados como strings sequenciais baseadas no tamanho atual da lista em memória. Isso torna IDs completamente previsíveis (ord-00001, ord-00002...), facilita enumeração de pedidos por terceiros, e em ambiente concorrente gera IDs duplicados se dois requests ocorrem simultaneamente com a lista no mesmo tamanho."
+      },
+      "impacto": "Risco de enumeração de pedidos (IDOR), colisão de IDs em concorrência, e incompatibilidade com UUID do schema PostgreSQL.",
+      "acao_recomendada": "Usar uuid.uuid4() para geração de IDs, alinhado com o schema.sql que já usa UUID PRIMARY KEY em todas as tabelas.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 13
+    },
+    {
+      "id": "F-014",
+      "severity": "MEDIO",
+      "dominio": "Backend",
+      "titulo": "Ausência de paginação em todos os endpoints de listagem",
+      "evidencia": {
+        "arquivo": "backend/app/routes/marketplace.py, companies.py, catalog.py",
+        "referencia": "marketplace.py linha 472: return {'count': len(ORDERS), 'items': ORDERS}; companies.py linha 53: return {'count': len(items), 'items': items}",
+        "descricao": "Todos os endpoints GET de listagem retornam os dados completos sem paginação (limit/offset/cursor). Com um Polo de Confecções real (centenas a milhares de empresas, produtos e pedidos), as respostas crescem ilimitadamente, causando timeout e alto consumo de memória/banda."
+      },
+      "impacto": "Degradação de performance proporcional ao volume de dados. Risco de timeout e DoS acidental com base de dados real.",
+      "acao_recomendada": "Adicionar parâmetros limit (padrão 50) e offset (padrão 0) em todos os endpoints de lista. Incluir campos 'total', 'limit', 'offset' na resposta para suporte a paginação no frontend.",
+      "esforco_estimado": "medio",
+      "prioridade_execucao": 14
+    },
+    {
+      "id": "F-015",
+      "severity": "MEDIO",
+      "dominio": "Backend",
+      "titulo": "context_engine.py usa resolução de path frágil com parents[3]",
+      "evidencia": {
+        "arquivo": "backend/app/core/context_engine.py",
+        "referencia": "linha 13: root = Path(__file__).resolve().parents[3]",
+        "descricao": "O arquivo contexto-compactacao.json é localizado navegando exatamente 3 níveis acima do arquivo context_engine.py (backend/app/core/ -> backend/app/ -> backend/ -> raiz). Se a estrutura de diretórios mudar, ou o backend for instalado como pacote, ou o deploy mudar a estrutura, o arquivo de configuração não será encontrado e o sistema usa dict vazio silenciosamente (linha 17-18: if not cfg_path.exists(): _CONTEXT_CACHE = {})."
+      },
+      "impacto": "Em deploy sem a pasta docs/ corretamente posicionada, compact_context retorna configuração vazia sem erro, causando comportamento incorreto silencioso.",
+      "acao_recomendada": "Usar variável de ambiente CONTEXT_CONFIG_PATH ou empacotar o JSON como recurso do módulo Python. Ao menos, lançar erro explícito se o arquivo não for encontrado ao invés de fallback silencioso.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 15
+    },
+    {
+      "id": "F-016",
+      "severity": "BAIXO",
+      "dominio": "Dados",
+      "titulo": "db.py configurado mas nunca importado ou utilizado em nenhum módulo",
+      "evidencia": {
+        "arquivo": "backend/app/core/db.py",
+        "referencia": "linhas 1-17: SQLAlchemy engine e SessionLocal configurados; grep em todos os routes/*.py: nenhum import de app.core.db",
+        "descricao": "O arquivo db.py define corretamente engine SQLAlchemy, SessionLocal e get_db() dependency para FastAPI. O schema.sql está completo. Porém nenhum dos routers importa get_db ou usa a sessão. A infraestrutura de banco está pronta mas desconectada."
+      },
+      "impacto": "Trabalho de configuração já feito, mas sem efeito. Sem bloqueador imediato, mas indica gap entre infraestrutura pronta e lógica de negócio ainda em memória.",
+      "acao_recomendada": "Conectar db.py às rotas como parte da implementação de persistência (F-001). O db.py já está correto, basta usá-lo.",
+      "esforco_estimado": "alto",
+      "prioridade_execucao": 16
+    },
+    {
+      "id": "F-017",
+      "severity": "BAIXO",
+      "dominio": "Dados",
+      "titulo": "companies_seed.csv existe mas não há script de carga para o banco",
+      "evidencia": {
+        "arquivo": "backend/seed/companies_seed.csv",
+        "referencia": "3 linhas de dados seed: car-001, scc-001, tor-001 — espelham exatamente models/companies.py",
+        "descricao": "Existe um arquivo CSV de seed mas nenhum script Python ou comando para carregá-lo no PostgreSQL. A equivalência entre CSV e lista Python em memória é manual e pode divergir. Não há seed para products ou variants."
+      },
+      "impacto": "Ao migrar para PostgreSQL, os dados seed precisarão ser carregados manualmente sem script automatizado, risco de inconsistência.",
+      "acao_recomendada": "Criar script backend/seed/run_seed.py que lê os CSVs e insere no PostgreSQL via SQLAlchemy. Adicionar seed para products e variants.",
+      "esforco_estimado": "baixo",
+      "prioridade_execucao": 17
+    }
+  ],
+  "readiness_matrix": {
+    "produto": "PARCIAL",
+    "backend": "PARCIAL",
+    "frontend": "PARCIAL",
+    "dados": "NAO_PRONTO",
+    "seguranca": "NAO_PRONTO",
+    "logistica": "PARCIAL",
+    "pagamento": "NAO_PRONTO"
+  },
+  "readiness_matrix_detalhes": {
+    "produto": "Escopo bem definido, fluxos documentados, contrato de API coerente. Falta: mapa visual real (apenas lista), imagens de produto, ordenação por geolocalização real no frontend.",
+    "backend": "Arquitetura FastAPI limpa, rotas coerentes com documentação, validação Pydantic adequada, motor de contexto/compactação funcional. Bloqueador: zero persistência real em banco.",
+    "frontend": "PortalCentralPage.tsx funcional e conectada à API real com autenticação. MapaEmpresasPage.tsx usa MOCK e localhost hardcoded — desconectada da API.",
+    "dados": "Schema PostgreSQL completo e bem modelado. db.py configurado. PORÉM: nenhuma rota usa banco. 100% dos dados em memória. Status: NAO_PRONTO.",
+    "seguranca": "JWT implementado corretamente (jose, bcrypt). RBAC com require_roles funcional. Bloqueadores: SECRET_KEY com fallback inseguro, usuários hardcoded, sem CORS, sem rate limiting, endpoints públicos sem auth.",
+    "logistica": "Fluxo de excursão modelado, status validados via regex, timeline de pedido implementada. Transportadores perdem dados no restart (memória). Sem notificação real ao transportador (apenas link wa.me).",
+    "pagamento": "NAO IMPLEMENTADO. Nenhum endpoint, nenhum modelo de dados, nenhuma integração com gateway de pagamento presente no código ou documentação técnica."
+  },
+  "pre_sprint_backlog_80_20": [
+    {
+      "ordem": 1,
+      "item": "Persistência PostgreSQL — migrar ORDERS, EXCURSION_CARRIERS, LEADS e novos cadastros para banco",
+      "objetivo": "Eliminar perda de dados no restart — pré-requisito absoluto para piloto real",
+      "justificativa_impacto": "Sem isso, qualquer pedido criado ou transportador cadastrado desaparece no primeiro restart. Infraestrutura (db.py + schema.sql) já existe — é conectar as rotas ao banco.",
+      "criterio_aceite": "POST /portal/orders persiste no PostgreSQL; GET /portal/orders retorna dados após restart do servidor; EXCURSION_CARRIERS e LEADS igualmente persistidos.",
+      "dependencias": ["F-001", "F-016"]
+    },
+    {
+      "ordem": 2,
+      "item": "Correção de segurança: SECRET_KEY obrigatória + CORS + rate limiting em /auth/login",
+      "objetivo": "Eliminar os 3 bloqueadores de segurança críticos em um único sprint de segurança",
+      "justificativa_impacto": "SECRET_KEY insegura + ausência de CORS = sistema não funciona em produção de nenhuma forma. Rate limiting em login é MVP mínimo de segurança antes de qualquer piloto.",
+      "criterio_aceite": "Servidor não inicia sem APP_SECRET_KEY definida; frontend em domínio diferente consegue fazer requests; login bloqueado após 10 tentativas por IP em 1 minuto.",
+      "dependencias": ["F-002", "F-004", "F-008"]
+    },
+    {
+      "ordem": 3,
+      "item": "MapaEmpresasPage: conectar à API real e corrigir URLs hardcoded",
+      "objetivo": "Tornar a funcionalidade core do produto operacional para clientes reais",
+      "justificativa_impacto": "É a página de entrada do produto para clientes externos. Atualmente exibe apenas 3 empresas fixas e botões quebrados fora de localhost.",
+      "criterio_aceite": "Página busca dados de GET /api/companies com filtros funcionais; botões Rota e WhatsApp usam API_BASE_URL de variável de ambiente; funciona em domínio diferente de localhost.",
+      "dependencias": ["F-005"]
+    },
+    {
+      "ordem": 4,
+      "item": "Correção do bug de mutação de dicionário em companies.py (distance_km)",
+      "objetivo": "Corrigir bug crítico de estado compartilhado entre requests",
+      "justificativa_impacto": "Bug silencioso que corrompe dados de distância entre usuários. Correção é 1 linha de código.",
+      "criterio_aceite": "Dois requests GET /companies com lat/lng diferentes retornam distances_km corretas e independentes; objeto original COMPANIES não é modificado.",
+      "dependencias": ["F-007"]
+    },
+    {
+      "ordem": 5,
+      "item": "Usuários: tabela no banco + endpoint de registro/gestão básica",
+      "objetivo": "Viabilizar onboarding de lojistas e fábricas reais sem alterar código",
+      "justificativa_impacto": "Com usuários hardcoded, cada novo lojista/fábrica exige alteração de código e redeploy. Inviável para piloto com 10-20 empresas.",
+      "criterio_aceite": "POST /api/auth/register cria usuário no banco com role; login autentica contra banco; remover USERS dict de security.py.",
+      "dependencias": ["F-003", "F-001"]
+    },
+    {
+      "ordem": 6,
+      "item": "Encoding correto de URLs do WhatsApp com urllib.parse.quote",
+      "objetivo": "Garantir que links de WhatsApp funcionem com qualquer nome ou mensagem",
+      "justificativa_impacto": "Feature central do produto (contato via WhatsApp) quebra com nomes que têm acentos ou pontuação. Correção é mecânica e de baixo risco.",
+      "criterio_aceite": "URL de WhatsApp com empresa 'Confecções São João & Cia.' gera link válido acessível no WhatsApp Web.",
+      "dependencias": ["F-010"]
+    },
+    {
+      "ordem": 7,
+      "item": "Paginação nos endpoints de lista (limit/offset)",
+      "objetivo": "Preparar sistema para volumes reais de dados do Polo",
+      "justificativa_impacto": "Polo do Agreste tem centenas a milhares de empresas. Sem paginação, a primeira query real derruba o servidor.",
+      "criterio_aceite": "GET /companies?limit=20&offset=0 retorna 20 itens + campo total. Mesmo padrão em /catalog/products e /portal/orders.",
+      "dependencias": ["F-014"]
+    },
+    {
+      "ordem": 8,
+      "item": "Corrigir retorno 200 com body de erro em catalog.py",
+      "objetivo": "Alinhar tratamento de erro ao padrão HTTP e ao comportamento esperado pelo frontend",
+      "justificativa_impacto": "Bug que causa comportamento silencioso — frontend não detecta produto inexistente como erro.",
+      "criterio_aceite": "GET /catalog/products/prod-inexistente retorna HTTP 404 com {'detail': 'Produto nao encontrado'}.",
+      "dependencias": ["F-011"]
+    }
+  ],
+  "sprint_1_go_criteria": [
+    {
+      "check": "Todos os dados transacionais (pedidos, transportadores, leads, empresas novas) persistem em PostgreSQL após restart do servidor",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "APP_SECRET_KEY obrigatória em variável de ambiente — servidor não inicia sem ela",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "CORSMiddleware configurado com origins permitidos — frontend em qualquer domínio consegue comunicar com backend",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "MapaEmpresasPage.tsx consumindo API real via variável de ambiente API_BASE_URL (sem localhost hardcoded)",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "Bug de mutação de dicionário em companies.py corrigido (distance_km com shallow copy)",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "Encoding de URL WhatsApp usando urllib.parse.quote em todas as rotas que geram wa.me links",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "Endpoint de login com rate limiting básico (máximo 10 tentativas por IP por minuto)",
+      "status": "PENDENTE"
+    },
+    {
+      "check": "PortalCentralPage.tsx funcionando end-to-end: login -> busca -> pedido -> timeline logística -> link WhatsApp da empresa e do transportador",
+      "status": "OK"
+    },
+    {
+      "check": "Backend FastAPI inicializa sem erros com todas as rotas registradas e /health retornando 200",
+      "status": "OK"
+    },
+    {
+      "check": "Fluxo de excursão completo: registro de transportador -> criação de pedido modo excursao -> PATCH de status logístico",
+      "status": "OK"
+    }
+  ],
+  "nao_implementado": [
+    {
+      "tema": "PostgreSQL como banco de dados real",
+      "impacto": "BLOQUEADOR ABSOLUTO — todos os dados são voláteis",
+      "acao_minima": "Substituir listas Python em marketplace.py por queries SQLAlchemy usando db.py e schema.sql já existentes"
+    },
+    {
+      "tema": "Pagamento / gateway de pagamento",
+      "impacto": "Sem capacidade de cobrar pedidos online. Operação limitada a 'intenção de pedido' + contato via WhatsApp",
+      "acao_minima": "Definir strategy: Pix manual (MVP simples) ou integração Stripe/PagSeguro/Mercado Pago"
+    },
+    {
+      "tema": "Mapa visual com pins e clusters (Leaflet, Google Maps, Mapbox)",
+      "impacto": "MapaEmpresasPage exibe apenas lista de cards — sem o mapa que é o MVP prometido no escopo",
+      "acao_minima": "Integrar react-leaflet com tiles OpenStreetMap (gratuito). Pins com lat/lng já estão no modelo de empresa."
+    },
+    {
+      "tema": "Geolocalização do cliente no frontend",
+      "impacto": "Ordenação por distância existe no backend mas o frontend nunca envia lat/lng do usuário",
+      "acao_minima": "Adicionar navigator.geolocation.getCurrentPosition() no MapaEmpresasPage e PortalCentralPage para enviar lat/lng na query"
+    },
+    {
+      "tema": "Endpoint de registro e gestão de usuários",
+      "impacto": "Impossível onboarding de novos lojistas/fábricas sem alterar código Python",
+      "acao_minima": "POST /api/auth/register com email, password, role, company_id. Tabela users no PostgreSQL."
+    },
+    {
+      "tema": "Token refresh endpoint",
+      "impacto": "Usuários precisam fazer login manualmente a cada 24h. Sem revogação de tokens comprometidos.",
+      "acao_minima": "POST /api/auth/refresh com refresh_token de longa duração. Access token com TTL de 60 min."
+    },
+    {
+      "tema": "WhatsApp Business API (integração real)",
+      "impacto": "Contato com empresas e transportadores limitado a geração de link wa.me. Sem automação real.",
+      "acao_minima": "Para MVP: links wa.me são aceitáveis. Integração real (Meta Business API) é Sprint posterior."
+    },
+    {
+      "tema": "Upload e gestão de imagens de produto",
+      "impacto": "Tabela product_images existe no schema.sql mas sem endpoint de upload. Catálogo sem imagens.",
+      "acao_minima": "POST /api/portal/catalog/products/{id}/images com upload para S3/R2/Supabase Storage"
+    },
+    {
+      "tema": "Observabilidade (logs estruturados, métricas, rastreio de erros)",
+      "impacto": "Impossível diagnosticar problemas em produção sem logs. Sem alertas de falha.",
+      "acao_minima": "Adicionar logging estruturado (structlog ou loguru) e integrar Sentry para rastreio de exceções"
+    },
+    {
+      "tema": "CORS configurado",
+      "impacto": "Frontend bloqueado pelo browser em qualquer ambiente de produção",
+      "acao_minima": "Adicionar CORSMiddleware no main.py com ALLOWED_ORIGINS via variável de ambiente"
+    }
+  ],
+  "riscos_operacionais": [
+    {
+      "risco": "Piloto com 10-20 clientes reais: perda total de pedidos e cadastros se o servidor for reiniciado ou cair durante o piloto",
+      "severidade": "ALTA",
+      "mitigacao": "Implementar persistência PostgreSQL (F-001) antes do piloto. Sem isso, o risco é inevitável."
+    },
+    {
+      "risco": "Escalabilidade: COMPANIES, PRODUCTS, PRODUCT_VARIANTS são listas Python globais compartilhadas entre workers. Em Gunicorn com múltiplos workers, cada processo tem sua própria cópia — novos cadastros em um worker não aparecem em outro",
+      "severidade": "ALTA",
+      "mitigacao": "Migração para PostgreSQL resolve automaticamente. Até lá, usar apenas 1 worker (uvicorn sem --workers)."
+    },
+    {
+      "risco": "Transportadores de excursão cadastrados via API somem a cada restart — lojistas perdem histórico de transportadores confiáveis",
+      "severidade": "ALTA",
+      "mitigacao": "Persistência PostgreSQL para EXCURSION_CARRIERS. Seed inicial com transportadores conhecidos da região."
+    },
+    {
+      "risco": "SECRET_KEY padrão exposta no repositório — se o repositório for público ou vazar, todos os tokens podem ser forjados",
+      "severidade": "ALTA",
+      "mitigacao": "Tornar APP_SECRET_KEY obrigatória sem fallback. Rotacionar imediatamente qualquer chave que tenha sido deployada sem configuração."
+    },
+    {
+      "risco": "Frontend MapaEmpresasPage com URLs localhost:8000 será distribuído para clientes — funciona apenas na máquina do desenvolvedor",
+      "severidade": "MEDIA",
+      "mitigacao": "Corrigir para usar variável de ambiente NEXT_PUBLIC_API_BASE_URL antes de qualquer distribuição ou deploy."
+    },
+    {
+      "risco": "Concorrência de requests no endpoint GET /companies com lat/lng: mutação de COMPANIES contamina dados entre usuários",
+      "severidade": "MEDIA",
+      "mitigacao": "Correção imediata (1 linha): shallow copy antes de adicionar distance_km. Ver F-007."
+    }
+  ],
+  "arquitetura_atual": {
+    "descricao": "FastAPI monolítico com 4 routers (auth, companies, catalog, marketplace/portal). Frontend Next.js com 2 features: MapaEmpresasPage (MOCK desconectado) e PortalCentralPage (conectado à API). Motor de contexto/compactação implementado como utilitário Python (context_engine.py). Dados 100% em memória. PostgreSQL configurado mas não utilizado.",
+    "camadas": {
+      "backend_api": "FastAPI 0.4.0 — rotas em backend/app/routes/: auth.py, companies.py, catalog.py, marketplace.py",
+      "autenticacao": "JWT (jose) + bcrypt (passlib). RBAC via require_roles(). Usuários hardcoded em security.py.",
+      "modelos_dados": "Pydantic BaseModel para validação de entrada. Dados armazenados como List[Dict] em memória.",
+      "contexto_ia": "context_engine.py: compact_context() + build_image_prompt(). Config carregada de docs/contexto-compactacao.json.",
+      "banco_dados": "schema.sql: 5 tabelas (companies, products, product_variants, product_images, company_geocoding_logs). SQLAlchemy configurado em core/db.py. NENHUMA rota usa o banco.",
+      "frontend": "Next.js (uso de 'use client'). Feature mapa-empresas: 2 pages + api.ts. api.ts usa fetch com API_BASE hardcoded como 'http://localhost:8000/api'."
+    }
+  }
+}

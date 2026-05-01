@@ -1,0 +1,4 @@
+id,trade_name,company_type,city,neighborhood,street_address,address_number,latitude,longitude,whatsapp,phone,instagram,is_active
+car-001,Moda Caruaru Atacado,atacadista,Caruaru,Centro,Rua Duque de Caxias,120,-8.2848,-35.9699,+55 81 99999-1001,+55 81 3721-1001,@modacaruaruatacado,true
+scc-001,Fabrica Santa Cruz Jeans,fabrica,Santa Cruz do Capibaribe,Nova Santa Cruz,Avenida Bela Vista,450,-7.9575,-36.2043,+55 81 99999-2001,+55 81 3759-2001,@santacruzjeans,true
+tor-001,Toritama Moda Fitness,loja,Toritama,Centro,Rua Joao Chagas,89,-8.0094,-36.0565,+55 81 99999-3001,+55 81 3741-3001,@toritamamodafitness,true
