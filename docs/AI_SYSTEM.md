@@ -131,6 +131,45 @@ DEPLOY EM PRODUÇÃO
 
 ---
 
+### SPRINT G — Benchmark VendiZap (Novas Funcionalidades)
+> Impacto: Muito Alto | Custo: Médio-Alto | Fonte: Análise VendiZap 01/05/2026
+
+#### G-Design — Landing Page & UX
+| # | Melhoria | Descrição | Status |
+|---|---|---|---|
+| G1 | Landing page profissional | Hero + stats ("X lojas, Y pedidos/semana") + Como Funciona (4 passos) + Depoimentos | 🔍 A validar |
+| G2 | Design aspiracional moda | Visual fashion-first, paleta moderna, tipografia premium vs. design genérico atual | 🔍 A validar |
+| G3 | Filtros em chips visuais | Substituir selects por chips clicáveis com scroll horizontal (mobile-first) | 🔍 A validar |
+| G4 | Cards de produto ricos | Imagem 3:4 + hover zoom + badge de menor preço + estrelas de rating | 🔍 A validar |
+| G5 | Vitrine da loja profissional | Banner + logo + coleções em grid + botão "Falar no WhatsApp" fixo | 🔍 A validar |
+
+#### G-Monetização — Planos e Negócio
+| # | Melhoria | Descrição | Status |
+|---|---|---|---|
+| G6 | Página de Planos e Preços | 3 planos (Essencial/Profissional/Empresarial), sem taxas sobre vendas, trial 7 dias | 🔍 A validar |
+| G7 | Domínio customizado por loja | /loja/minha-marca → minha-marca.appmoda.com.br | 🔍 A validar |
+| G8 | Cupons e descontos | Lojista cria cupom de desconto com código, validade e limite de uso | 🔍 A validar |
+| G9 | Programa de afiliados | Representantes ganham comissão por indicar lojas — dashboard de afiliados | 🔍 A validar |
+| G10 | Cálculo de frete automático | Integração Melhor Envio / SuperFrete / Correios com cálculo por CEP | 🔍 A validar |
+
+#### G-Analytics — Painel do Lojista
+| # | Melhoria | Descrição | Status |
+|---|---|---|---|
+| G11 | Dashboard analytics | Vendas, produtos mais vistos, conversão, ticket médio — disponível em todos os planos | 🔍 A validar |
+| G12 | Recuperação de carrinhos abandonados | Alerta via WhatsApp para cliente que não finalizou pedido | 🔍 A validar |
+| G13 | Histórico de pedidos do cliente | Área do cliente com todos os pedidos e status em tempo real | 🔍 A validar |
+| G14 | Relatório de estoque | Alerta quando variante atinge estoque mínimo configurável | 🔍 A validar |
+
+#### G-Integrações — Redes Sociais e ERP
+| # | Melhoria | Descrição | Status |
+|---|---|---|---|
+| G15 | Instagram Shopping | Feed da loja sincronizado com catálogo; tags de produto nas fotos | 🔍 A validar |
+| G16 | WhatsApp Business API | Notificações automáticas de pedido, entrega e avaliação pós-compra | 🔍 A validar |
+| G17 | Integração ERP | API aberta para sincronizar com Bling, Tiny, TOTVS e outros ERPs do setor | 🔍 A validar |
+| G18 | PWA / App Nativo | Progressive Web App com notificações push (diferencial: VendiZap não tem) | 🔍 A validar |
+
+---
+
 ## 4. Agente de Pesquisa Semanal
 
 **Frequência:** Toda segunda-feira às 9h (horário de Brasília)

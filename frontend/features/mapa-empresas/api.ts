@@ -169,6 +169,49 @@ export async function getStorefront(companyId: string): Promise<StorefrontRespon
   return res.json();
 }
 
+export type AISearchResult = {
+  query: string;
+  found: boolean;
+  products_matched?: number;
+  nearest: Array<{
+    id: string;
+    trade_name: string;
+    city: string;
+    neighborhood: string;
+    whatsapp: string;
+    min_price: number | null;
+    storefront_url: string;
+    distance_km?: number;
+  }>;
+  cheapest: Array<{
+    id: string;
+    trade_name: string;
+    city: string;
+    neighborhood: string;
+    whatsapp: string;
+    min_price: number | null;
+    storefront_url: string;
+  }>;
+};
+
+export async function aiSearch(
+  text: string,
+  location?: { lat: number; lon: number }
+): Promise<AISearchResult> {
+  const body: Record<string, unknown> = { text };
+  if (location) { body.customer_lat = location.lat; body.customer_lon = location.lon; }
+  const res = await fetch(`${API_BASE}/portal/ai-search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).detail ?? "Erro na busca por IA");
+  }
+  return res.json();
+}
+
 export type CatalogImportResult = {
   message: string;
   created_products: number;

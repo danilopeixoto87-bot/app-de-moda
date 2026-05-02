@@ -282,6 +282,130 @@ def register_variant(
 
 
 # ---------------------------------------------------------------------------
+# Portal routes — busca por IA (texto livre / voz)
+# ---------------------------------------------------------------------------
+
+class AISearchInput(BaseModel):
+    text: str
+    customer_lat: float | None = None
+    customer_lon: float | None = None
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+@router.post("/portal/ai-search")
+def ai_search(payload: AISearchInput, db: Session = Depends(get_db)):
+    """
+    Recebe texto livre (digitado ou transcrito de voz) com descrição do produto.
+    Retorna:
+    - top 5 lojas mais próximas que têm o produto (se lat/lon fornecido)
+    - top 5 lojas com o menor preço para o produto identificado
+    """
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Texto vazio")
+
+    # Extrair keywords para busca nos produtos
+    keywords = [w for w in text.lower().split() if len(w) >= 3]
+    if not keywords:
+        raise HTTPException(status_code=400, detail="Descrição muito curta")
+
+    # Buscar produtos que combinam com as palavras
+    products_q = db.query(Product).filter(Product.is_active == True)
+    for kw in keywords[:5]:
+        products_q = products_q.filter(
+            or_(
+                Product.product_name.ilike(f"%{kw}%"),
+                Product.description.ilike(f"%{kw}%"),
+                Product.category.ilike(f"%{kw}%"),
+            )
+        )
+
+    products = products_q.limit(200).all()
+
+    if not products:
+        # Fallback: qualquer palavra
+        for kw in keywords[:3]:
+            prods = db.query(Product).filter(
+                Product.is_active == True,
+                or_(
+                    Product.product_name.ilike(f"%{kw}%"),
+                    Product.category.ilike(f"%{kw}%"),
+                )
+            ).limit(50).all()
+            if prods:
+                products = prods
+                break
+
+    product_ids = [p.id for p in products]
+    company_ids = list({p.company_id for p in products})
+
+    if not company_ids:
+        return {"query": text, "found": False, "nearest": [], "cheapest": []}
+
+    companies = db.query(Company).filter(
+        Company.id.in_(company_ids), Company.is_active == True
+    ).all()
+
+    # Preço mínimo por empresa (via variantes ou base_price)
+    company_min_price: dict[str, float] = {}
+    for p in products:
+        variants = db.query(ProductVariant).filter(
+            ProductVariant.product_id == p.id, ProductVariant.stock_qty > 0
+        ).all()
+        prices = [float(v.variant_price) for v in variants if v.variant_price is not None]
+        min_price = min(prices) if prices else float(p.base_price)
+        cid = p.company_id
+        if cid not in company_min_price or min_price < company_min_price[cid]:
+            company_min_price[cid] = min_price
+
+    def _company_summary(c: Company) -> dict:
+        return {
+            "id": c.id,
+            "trade_name": c.trade_name,
+            "city": c.city,
+            "neighborhood": c.neighborhood,
+            "whatsapp": c.whatsapp,
+            "latitude": c.latitude,
+            "longitude": c.longitude,
+            "min_price": company_min_price.get(c.id),
+            "storefront_url": f"/loja/{c.id}",
+        }
+
+    top_cheapest = sorted(
+        companies,
+        key=lambda c: company_min_price.get(c.id, 9999)
+    )[:5]
+
+    if payload.customer_lat is not None and payload.customer_lon is not None:
+        top_nearest = sorted(
+            [c for c in companies if c.latitude and c.longitude],
+            key=lambda c: _haversine_km(payload.customer_lat, payload.customer_lon, c.latitude, c.longitude)
+        )[:5]
+        nearest_with_distance = [
+            {**_company_summary(c), "distance_km": round(_haversine_km(payload.customer_lat, payload.customer_lon, c.latitude, c.longitude), 1)}
+            for c in top_nearest
+        ]
+    else:
+        nearest_with_distance = []
+
+    return {
+        "query": text,
+        "found": True,
+        "products_matched": len(products),
+        "nearest": nearest_with_distance,
+        "cheapest": [_company_summary(c) for c in top_cheapest],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Portal routes — busca
 # ---------------------------------------------------------------------------
 

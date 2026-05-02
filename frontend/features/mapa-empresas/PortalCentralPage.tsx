@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import AISearchWidget from "./AISearchWidget";
 import {
   createOrder,
   generateImagePrompt,
@@ -335,98 +336,198 @@ export default function PortalCentralPage() {
     }
   }
 
+  const QUICK_CATEGORIES = [
+    { key: "camisa", label: "👕 Camisas" },
+    { key: "calca", label: "👖 Calças" },
+    { key: "bermuda", label: "🩳 Bermudas" },
+    { key: "vestido", label: "👗 Vestidos" },
+    { key: "blusa", label: "🫧 Blusas" },
+    { key: "conjunto", label: "🎽 Conjuntos" },
+    { key: "jaqueta", label: "🧥 Jaquetas" },
+    { key: "moda-praia", label: "🏖️ Praia" },
+    { key: "acessorio", label: "👜 Acessórios" },
+  ];
+
   return (
-    <main style={{ maxWidth: 980, margin: "0 auto", padding: 16, fontFamily: "ui-sans-serif, system-ui" }}>
-      <h1 style={{ marginBottom: 6 }}>Portal Central de Moda</h1>
-      <p style={{ marginTop: 0 }}>Busca unificada, pedido online, logistica previsivel e contato com lojas/fabricas.</p>
+    <main style={{ fontFamily: "ui-sans-serif, system-ui", background: "#f8f9fa", minHeight: "100vh" }}>
 
-      <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
-        <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input placeholder="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      </section>
-      {!token ? (
-        <button onClick={runLogin} disabled={loading} style={{ marginTop: 8 }}>Login</button>
-      ) : (
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, color: "#16a34a" }}>✓ Logado</span>
-          <button
-            onClick={() => { setToken(""); localStorage.removeItem("auth_token"); }}
-            style={{ fontSize: 12, padding: "2px 10px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 4 }}
-          >
-            Sair
-          </button>
+      {/* ── HERO ── */}
+      <div style={{ background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 60%,#0f3460 100%)", color: "#fff", padding: "32px 16px 24px", textAlign: "center" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div style={{ fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "#a5b4fc", marginBottom: 8 }}>
+            Polo de Confecções do Agreste · PE
+          </div>
+          <h1 style={{ margin: "0 0 10px", fontSize: "clamp(22px,5vw,36px)", fontWeight: 800, lineHeight: 1.2 }}>
+            Compre moda direto da fábrica
+          </h1>
+          <p style={{ margin: "0 0 20px", color: "#cbd5e1", fontSize: "clamp(13px,3vw,16px)" }}>
+            Marketplace B2B com as melhores lojas de Caruaru, Santa Cruz e Toritama
+          </p>
+
+          {/* Stats bar */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "clamp(16px,4vw,40px)", marginBottom: 24, flexWrap: "wrap" }}>
+            {[
+              { n: result ? `${result.companies_count}` : "200+", label: "Lojas" },
+              { n: result ? `${result.products_count}` : "5.000+", label: "Produtos" },
+              { n: "3", label: "Cidades" },
+            ].map(({ n, label }) => (
+              <div key={label} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "clamp(20px,4vw,28px)", fontWeight: 800, color: "#a5b4fc" }}>{n}</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Barra de busca principal */}
+          <div style={{ display: "flex", gap: 0, maxWidth: 560, margin: "0 auto", borderRadius: 12, overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+            <input
+              placeholder="Buscar produto, tecido ou loja..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runSearch()}
+              style={{ flex: 1, padding: "14px 16px", border: "none", fontSize: 15, outline: "none", minWidth: 0 }}
+            />
+            <button
+              onClick={runSearch}
+              disabled={loading}
+              style={{ padding: "14px 20px", background: "#a5b4fc", color: "#1a1a2e", border: "none", fontWeight: 700, fontSize: 15, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {loading ? "..." : "Buscar"}
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", marginTop: 12 }}>
-        <input placeholder="Produto ou descricao" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select value={city} onChange={(e) => setCity(e.target.value)}>
-          <option value="">Todas as cidades</option>
-          <option value="Caruaru">Caruaru</option>
-          <option value="Santa Cruz do Capibaribe">Santa Cruz do Capibaribe</option>
-          <option value="Toritama">Toritama</option>
-        </select>
-        <select value={category} onChange={(e) => { setCategory(e.target.value); setTipo(""); setManga(""); }}>
-          <option value="">Todas as categorias</option>
-          <option value="camisa">Camisa</option>
-          <option value="calca">Calça</option>
-          <option value="bermuda">Bermuda</option>
-          <option value="vestido">Vestido</option>
-          <option value="blusa">Blusa</option>
-          <option value="conjunto">Conjunto</option>
-          <option value="jaqueta">Jaqueta</option>
-          <option value="moda-praia">Moda Praia</option>
-          <option value="acessorio">Acessório</option>
-        </select>
-      </section>
+      {/* ── CATEGORIAS RÁPIDAS ── */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", overflowX: "auto", padding: "0 8px" }}>
+        <div style={{ display: "flex", gap: 4, padding: "10px 0", minWidth: "max-content", margin: "0 auto", maxWidth: 980 }}>
+          <button
+            onClick={() => { setCategory(""); setTipo(""); setManga(""); }}
+            style={{
+              padding: "6px 14px", borderRadius: 20, border: "1.5px solid",
+              borderColor: !category ? "#6366f1" : "#e5e7eb",
+              background: !category ? "#eef2ff" : "transparent",
+              color: !category ? "#4338ca" : "#374151",
+              fontWeight: !category ? 700 : 400, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            Tudo
+          </button>
+          {QUICK_CATEGORIES.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => { setCategory(key); setTipo(""); setManga(""); setTimeout(runSearch, 50); }}
+              style={{
+                padding: "6px 14px", borderRadius: 20, border: "1.5px solid",
+                borderColor: category === key ? "#6366f1" : "#e5e7eb",
+                background: category === key ? "#eef2ff" : "transparent",
+                color: category === key ? "#4338ca" : "#374151",
+                fontWeight: category === key ? 700 : 400, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Filtros contextuais — aparecem de acordo com a categoria selecionada */}
-      {categoryConfig && (
-        <section style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-          {categoryConfig.tipos && (
-            <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ minWidth: 140 }}>
-              <option value="">Tipo</option>
-              {categoryConfig.tipos.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
+      {/* ── ASSISTENTE IA / VOZ ── */}
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "10px 16px 0" }}>
+        <AISearchWidget />
+      </div>
+
+      {/* ── FILTROS AVANÇADOS (expansível) ── */}
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "10px 16px" }}>
+        <details style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 14px" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 14, color: "#374151", listStyle: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Filtros avançados {(city || tipo || manga || size || color || fabric) ? `(${[city,tipo,manga,size,color,fabric].filter(Boolean).length} ativos)` : ""}</span>
+            <span style={{ fontSize: 12, color: "#6b7280" }}>▼</span>
+          </summary>
+
+          <div style={{ marginTop: 12, display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
+            <select value={city} onChange={(e) => setCity(e.target.value)}>
+              <option value="">Todas as cidades</option>
+              <option value="Caruaru">Caruaru</option>
+              <option value="Santa Cruz do Capibaribe">Santa Cruz do Capibaribe</option>
+              <option value="Toritama">Toritama</option>
             </select>
-          )}
-          {categoryConfig.mangas && (
-            <select value={manga} onChange={(e) => setManga(e.target.value)} style={{ minWidth: 130 }}>
-              <option value="">Manga</option>
-              {categoryConfig.mangas.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
+
+            {categoryConfig?.tipos && (
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                <option value="">Tipo</option>
+                {categoryConfig.tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            )}
+
+            {categoryConfig?.mangas && (
+              <select value={manga} onChange={(e) => setManga(e.target.value)}>
+                <option value="">Manga</option>
+                {categoryConfig.mangas.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
+
+            <select value={size} onChange={(e) => setSize(e.target.value)}>
+              <option value="">Tamanho</option>
+              {activeSizes.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
+
+            <select value={color} onChange={(e) => setColor(e.target.value)}>
+              <option value="">Cor</option>
+              {ALL_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+
+            <select value={fabric} onChange={(e) => setFabric(e.target.value)}>
+              <option value="">Tecido</option>
+              {activeFabrics.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={runSearch}
+              disabled={loading}
+              style={{ background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+            >
+              Aplicar filtros
+            </button>
+            <button
+              onClick={() => { setCity(""); setCategory(""); setTipo(""); setManga(""); setSize(""); setColor(""); setFabric(""); }}
+              style={{ background: "transparent", color: "#6b7280", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 14px", fontSize: 14, cursor: "pointer" }}
+            >
+              Limpar
+            </button>
+            <button onClick={runPrompt} disabled={loading} style={{ background: "transparent", color: "#6366f1", border: "1px solid #6366f1", borderRadius: 8, padding: "8px 14px", fontSize: 13, cursor: "pointer" }}>
+              ✨ Gerar Prompt IA
+            </button>
+          </div>
+        </details>
+
+        {/* Auth compacto */}
+        <details style={{ marginTop: 8, background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "10px 14px" }}>
+          <summary style={{ cursor: "pointer", fontSize: 13, color: token ? "#16a34a" : "#6b7280", listStyle: "none" }}>
+            {token ? "✓ Logado — clique para sair" : "Entrar na conta (lojistas e fábricas)"}
+          </summary>
+          {!token ? (
+            <div style={{ marginTop: 10, display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr auto" }}>
+              <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ fontSize: 13 }} />
+              <input placeholder="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ fontSize: 13 }} />
+              <button onClick={runLogin} disabled={loading} style={{ background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13 }}>
+                Entrar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setToken(""); localStorage.removeItem("auth_token"); }}
+              style={{ marginTop: 8, fontSize: 12, padding: "4px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 6 }}
+            >
+              Sair
+            </button>
           )}
-        </section>
-      )}
+        </details>
+      </div>
 
-      <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", marginTop: 8 }}>
-        <select value={size} onChange={(e) => setSize(e.target.value)}>
-          <option value="">Tamanho</option>
-          {activeSizes.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <select value={color} onChange={(e) => setColor(e.target.value)}>
-          <option value="">Cor</option>
-          {ALL_COLORS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <select value={fabric} onChange={(e) => setFabric(e.target.value)}>
-          <option value="">Tecido</option>
-          {activeFabrics.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
-      </section>
-
-      <section style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <button onClick={runSearch} disabled={loading}>Pesquisar</button>
-        <button onClick={runPrompt} disabled={loading}>Gerar Prompt IA</button>
-      </section>
+      {/* Conteúdo principal */}
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "0 16px 32px" }}>
 
       {error && <p style={{ color: "#b00020" }}>{error}</p>}
 
@@ -754,6 +855,7 @@ export default function PortalCentralPage() {
           </div>
         </section>
       )}
+      </div>{/* fim conteúdo principal */}
     </main>
   );
 }
