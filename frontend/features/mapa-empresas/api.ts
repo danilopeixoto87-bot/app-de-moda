@@ -169,6 +169,34 @@ export async function getStorefront(companyId: string): Promise<StorefrontRespon
   return res.json();
 }
 
+export type CatalogImportResult = {
+  message: string;
+  created_products: number;
+  updated_products: number;
+  created_variants: number;
+  errors_count: number;
+  errors: Array<{ row: number; error: string }>;
+};
+
+export async function importCatalogCSV(file: File, token: string): Promise<CatalogImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/portal/catalog/import`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).detail ?? "Falha na importação do catálogo");
+  }
+  return res.json();
+}
+
+export function catalogTemplateUrl(): string {
+  return `${API_BASE}/portal/catalog/import/template`;
+}
+
 export async function generateProductImage(
   productId: string,
   token: string,

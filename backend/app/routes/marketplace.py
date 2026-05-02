@@ -290,6 +290,8 @@ def portal_search(
     q: str | None = None,
     city: str | None = None,
     category: str | None = None,
+    tipo: str | None = None,
+    manga: str | None = None,
     size: str | None = None,
     color: str | None = None,
     fabric: str | None = None,
@@ -311,6 +313,14 @@ def portal_search(
         )
     if category:
         products_q = products_q.filter(Product.category.ilike(f"%{category}%"))
+    if tipo:
+        # tipo encoded in product_name ("Polo", "Social") and in fit_type via variants
+        products_q = products_q.filter(
+            or_(Product.product_name.ilike(f"%{tipo}%"), Product.description.ilike(f"%Tipo: {tipo}%"))
+        )
+    if manga:
+        # manga encoded in description as "Manga: Curta" or "Manga: Longa"
+        products_q = products_q.filter(Product.description.ilike(f"%Manga: {manga}%"))
 
     companies = companies_q.offset(offset).limit(limit).all()
     products = products_q.offset(offset).limit(limit).all()
@@ -323,6 +333,8 @@ def portal_search(
         variants_q = variants_q.filter(ProductVariant.color_name.ilike(f"%{color}%"))
     if fabric:
         variants_q = variants_q.filter(ProductVariant.fabric_type.ilike(f"%{fabric}%"))
+    if tipo:
+        variants_q = variants_q.filter(ProductVariant.fit_type.ilike(f"%{tipo}%"))
     variants = variants_q.limit(100).all()
 
     return {
@@ -643,6 +655,182 @@ def generate_product_image(
     db.commit()
     db.refresh(image)
     return {"message": "Imagem gerada com sucesso", "prompt_usado": prompt, "image": row_to_dict(image)}
+
+
+# ---------------------------------------------------------------------------
+# Portal routes — importação de catálogo via CSV
+# ---------------------------------------------------------------------------
+
+@router.post("/portal/catalog/import")
+async def import_catalog_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(require_roles("admin", "fabrica", "lojista")),
+    db: Session = Depends(get_db),
+):
+    """
+    Importação em lote de produtos e variantes via CSV.
+
+    Colunas obrigatórias: sku, product_name, category, base_price
+    Colunas opcionais: gender_target, description, size_label, color_name,
+                       color_hex, fabric_type, fit_type, variant_price, stock_qty
+
+    A loja só pode importar produtos da própria empresa (company_id do token).
+    Admin pode importar para qualquer empresa (informe company_id na coluna).
+    """
+    import csv, io
+
+    ip = request.client.host if request.client else "unknown"
+    if _rate_limited(ip, max_per_minute=5):
+        raise HTTPException(status_code=429, detail="Muitas importacoes. Aguarde.")
+
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Envie um arquivo .csv")
+
+    content = await file.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Arquivo CSV maior que 2 MB")
+
+    try:
+        text = content.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Falha ao decodificar CSV — use UTF-8")
+
+    required_cols = {"sku", "product_name", "category", "base_price"}
+    if not reader.fieldnames or not required_cols.issubset(set(reader.fieldnames)):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Colunas obrigatórias ausentes: {required_cols - set(reader.fieldnames or [])}"
+        )
+
+    # Determine company_id: fabrica/lojista uses their own; admin can override via CSV column
+    company_id = user.company_id
+    if not company_id and user.role != "admin":
+        raise HTTPException(status_code=400, detail="Usuário sem empresa vinculada")
+
+    stats = {"created_products": 0, "updated_products": 0, "created_variants": 0, "errors": []}
+    rows = list(reader)
+
+    if len(rows) > 500:
+        raise HTTPException(status_code=400, detail="Maximo de 500 linhas por importacao")
+
+    for i, row in enumerate(rows, start=2):
+        line_company_id = row.get("company_id", "").strip() or company_id
+        if user.role != "admin" and line_company_id != company_id:
+            stats["errors"].append({"row": i, "error": "Proibido importar para outra empresa"})
+            continue
+
+        sku = row.get("sku", "").strip()
+        product_name = row.get("product_name", "").strip()
+        category = row.get("category", "").strip()
+        try:
+            base_price = Decimal(str(row.get("base_price", "0")).replace(",", "."))
+        except Exception:
+            stats["errors"].append({"row": i, "error": "base_price inválido"})
+            continue
+
+        if not sku or not product_name or not category:
+            stats["errors"].append({"row": i, "error": "sku/product_name/category em branco"})
+            continue
+
+        # Upsert product
+        product = db.query(Product).filter(Product.sku == sku, Product.company_id == line_company_id).first()
+        if product:
+            product.product_name = product_name
+            product.category = category
+            product.base_price = base_price
+            product.gender_target = row.get("gender_target", "").strip() or product.gender_target
+            product.description = row.get("description", "").strip() or product.description
+            product.is_active = True
+            stats["updated_products"] += 1
+        else:
+            product = Product(
+                company_id=line_company_id,
+                sku=sku,
+                product_name=product_name,
+                category=category,
+                base_price=base_price,
+                gender_target=row.get("gender_target", "").strip() or None,
+                description=row.get("description", "").strip() or None,
+            )
+            db.add(product)
+            db.flush()
+            stats["created_products"] += 1
+
+        # Optional variant columns
+        size_label = row.get("size_label", "").strip()
+        color_name = row.get("color_name", "").strip()
+        fabric_type = row.get("fabric_type", "").strip()
+        if size_label or color_name or fabric_type:
+            try:
+                variant_price_raw = row.get("variant_price", "").strip()
+                variant_price = Decimal(variant_price_raw.replace(",", ".")) if variant_price_raw else None
+                stock_qty_raw = row.get("stock_qty", "0").strip()
+                stock_qty = int(stock_qty_raw) if stock_qty_raw else 0
+            except Exception:
+                stats["errors"].append({"row": i, "error": "variant_price/stock_qty inválido"})
+                continue
+
+            existing_variant = db.query(ProductVariant).filter(
+                ProductVariant.product_id == product.id,
+                ProductVariant.size_label == size_label,
+                ProductVariant.color_name == color_name,
+            ).first() if size_label and color_name else None
+
+            if existing_variant:
+                existing_variant.fabric_type = fabric_type or existing_variant.fabric_type
+                existing_variant.fit_type = row.get("fit_type", "").strip() or existing_variant.fit_type
+                existing_variant.color_hex = row.get("color_hex", "").strip() or existing_variant.color_hex
+                existing_variant.variant_price = variant_price if variant_price is not None else existing_variant.variant_price
+                existing_variant.stock_qty = stock_qty
+            else:
+                db.add(ProductVariant(
+                    product_id=product.id,
+                    size_label=size_label or "Único",
+                    color_name=color_name or "Sem cor",
+                    color_hex=row.get("color_hex", "").strip() or None,
+                    fabric_type=fabric_type or "Não informado",
+                    fit_type=row.get("fit_type", "").strip() or None,
+                    variant_price=variant_price,
+                    stock_qty=stock_qty,
+                ))
+                stats["created_variants"] += 1
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar: {str(e)}")
+
+    return {
+        "message": "Importação concluída",
+        "created_products": stats["created_products"],
+        "updated_products": stats["updated_products"],
+        "created_variants": stats["created_variants"],
+        "errors_count": len(stats["errors"]),
+        "errors": stats["errors"][:20],
+    }
+
+
+@router.get("/portal/catalog/import/template")
+def download_catalog_template():
+    """Retorna o cabeçalho CSV modelo para importação de catálogo."""
+    import io
+    from fastapi.responses import StreamingResponse
+
+    header = (
+        "sku,product_name,category,gender_target,description,"
+        "base_price,size_label,color_name,color_hex,fabric_type,"
+        "fit_type,variant_price,stock_qty\n"
+        "CAM-001,Camisa Polo Masculina,camisa,M,\"Tipo: Polo. Manga: Curta.\","
+        "89.90,M,Azul,#1a56db,Algodão,Polo,89.90,50\n"
+    )
+    return StreamingResponse(
+        io.BytesIO(header.encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=catalogo_modelo.csv"},
+    )
 
 
 # ---------------------------------------------------------------------------

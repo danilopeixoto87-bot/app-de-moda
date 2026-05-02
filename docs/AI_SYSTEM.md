@@ -10,23 +10,24 @@
 │          CLAUDE SONNET 4.6  (Arquiteto Sênior)          │
 │  Revisor final · Decisões críticas · Validação de code  │
 │  Segurança · Arquitetura · Aprovação de sprints         │
-└────────────────────────┬────────────────────────────────┘
-                         │ valida tudo
-         ┌───────────────┼───────────────┐
-         ▼               ▼               ▼
-  ┌──────────────┐ ┌──────────────┐ ┌──────────────────┐
-  │   GEMINI     │ │  CEREBRAS    │ │     GROQ         │
-  │ 2.5 Flash    │ │ qwen-3-235b  │ │  (fallback)      │
-  │              │ │   FREE 1M    │ │                  │
-  │ • Auditoria  │ │ tok/dia      │ │ • Tarefas        │
-  │   segurança  │ │              │ │   específicas    │
-  │ • Exploração │ │ • Geração    │ │ • Quando         │
-  │   codebase   │ │   rápida     │ │   Cerebras       │
-  │ • Pesquisa   │ │   de código  │ │   atingir        │
-  │   UX/trends  │ │ • Análise    │ │   limite         │
-  │ • Análise    │ │   de dados   │ │                  │
-  │   de design  │ │ • Batch jobs │ │                  │
-  └──────────────┘ └──────────────┘ └──────────────────┘
+└──────────────┬─────────────────────────────────────────┘
+               │ valida tudo
+   ┌───────────┼────────────┬──────────────┐
+   ▼           ▼            ▼              ▼
+┌────────┐ ┌────────┐ ┌──────────┐ ┌──────────────┐
+│ GEMINI │ │CEREBRAS│ │  GROQ    │ │   COPILOT    │
+│2.5Flash│ │qwen-3- │ │(fallback)│ │ (GitHub AI)  │
+│        │ │235b    │ │          │ │              │
+│• Audit.│ │FREE 1M │ │• Tarefas │ │• Sugestões   │
+│  segur.│ │tok/dia │ │  especí- │ │  de código   │
+│• Explor│ │        │ │  ficas   │ │  no editor   │
+│  code  │ │• Geraç.│ │• Fallback│ │• Completar   │
+│• Pesq. │ │  rápida│ │  quando  │ │  boilerplate │
+│  UX    │ │• Análise│ │  Cerebras│ │• Docstrings  │
+│• Design│ │  dados │ │  lotado  │ │  e testes    │
+│        │ │• Batch │ │          │ │• Revisão de  │
+│        │ │  jobs  │ │          │ │  PR inline   │
+└────────┘ └────────┘ └──────────┘ └──────────────┘
 ```
 
 ### Protocolo de trabalho

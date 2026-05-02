@@ -11,6 +11,9 @@ import {
   uploadProductImage,
   generateProductImage,
   listProductImages,
+  importCatalogCSV,
+  catalogTemplateUrl,
+  type CatalogImportResult,
   type CheckoutResponse,
   type ExcursionCarrier,
   type PortalSearchResponse,
@@ -26,6 +29,9 @@ export default function PortalCentralPage() {
 
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
+  const [category, setCategory] = useState("");
+  const [tipo, setTipo] = useState("");
+  const [manga, setManga] = useState("");
   const [size, setSize] = useState("");
   const [color, setColor] = useState("");
   const [fabric, setFabric] = useState("");
@@ -54,6 +60,10 @@ export default function PortalCentralPage() {
   const [gallery, setGallery] = useState<ProductImage[]>([]);
   const [galleryProductId, setGalleryProductId] = useState("");
 
+  const [catalogFile, setCatalogFile] = useState<File | null>(null);
+  const [catalogImportResult, setCatalogImportResult] = useState<CatalogImportResult | null>(null);
+  const [catalogImportLoading, setCatalogImportLoading] = useState(false);
+
   const [result, setResult] = useState<PortalSearchResponse | null>(null);
   const [promptResult, setPromptResult] = useState<{ prompt: string } | null>(null);
   const [orderResult, setOrderResult] = useState<any>(null);
@@ -62,7 +72,36 @@ export default function PortalCentralPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const searchParams = useMemo(() => ({ q: query, city, size, color, fabric }), [query, city, size, color, fabric]);
+  const searchParams = useMemo(
+    () => ({ q: query, city, category, tipo, manga, size, color, fabric }),
+    [query, city, category, tipo, manga, size, color, fabric]
+  );
+
+  const CATEGORY_FILTERS: Record<string, { tipos?: string[]; mangas?: string[] }> = {
+    camisa: {
+      tipos: ["Polo", "Social", "Regata", "Henley", "Manga Longa"],
+      mangas: ["Curta", "Longa"],
+    },
+    calca: {
+      tipos: ["Jeans Reto", "Skinny", "Moletom", "Cargo", "Social"],
+    },
+    vestido: {
+      tipos: ["Longo", "Curto", "Midi", "Festa"],
+    },
+    blusa: {
+      tipos: ["Cropped", "Ciganinha", "Regata", "Social"],
+      mangas: ["Curta", "Longa", "Sem Manga"],
+    },
+    jaqueta: {
+      tipos: ["Jeans", "Couro", "Moletom", "Puffer"],
+      mangas: ["Longa"],
+    },
+  };
+
+  const activeCategoryKey = Object.keys(CATEGORY_FILTERS).find((k) =>
+    category.toLowerCase().includes(k)
+  );
+  const categoryConfig = activeCategoryKey ? CATEGORY_FILTERS[activeCategoryKey] : null;
 
   async function runLogin() {
     setError("");
@@ -222,6 +261,22 @@ export default function PortalCentralPage() {
     }
   }
 
+  async function runCatalogImport() {
+    if (!token) return setError("Faça login antes de importar o catálogo");
+    if (!catalogFile) return setError("Selecione um arquivo CSV");
+    setError("");
+    setCatalogImportLoading(true);
+    setCatalogImportResult(null);
+    try {
+      const data = await importCatalogCSV(catalogFile, token);
+      setCatalogImportResult(data);
+    } catch (e: any) {
+      setError(e?.message || "Erro na importação do catálogo");
+    } finally {
+      setCatalogImportLoading(false);
+    }
+  }
+
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 16, fontFamily: "ui-sans-serif, system-ui" }}>
       <h1 style={{ marginBottom: 6 }}>Portal Central de Moda</h1>
@@ -248,14 +303,66 @@ export default function PortalCentralPage() {
       <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", marginTop: 12 }}>
         <input placeholder="Produto ou descricao" value={query} onChange={(e) => setQuery(e.target.value)} />
         <select value={city} onChange={(e) => setCity(e.target.value)}>
-          <option value="">Todas cidades</option>
+          <option value="">Todas as cidades</option>
           <option value="Caruaru">Caruaru</option>
           <option value="Santa Cruz do Capibaribe">Santa Cruz do Capibaribe</option>
           <option value="Toritama">Toritama</option>
         </select>
-        <input placeholder="Tamanho" value={size} onChange={(e) => setSize(e.target.value)} />
-        <input placeholder="Cor" value={color} onChange={(e) => setColor(e.target.value)} />
-        <input placeholder="Tecido" value={fabric} onChange={(e) => setFabric(e.target.value)} />
+        <select value={category} onChange={(e) => { setCategory(e.target.value); setTipo(""); setManga(""); }}>
+          <option value="">Todas as categorias</option>
+          <option value="camisa">Camisa</option>
+          <option value="calca">Calça</option>
+          <option value="bermuda">Bermuda</option>
+          <option value="vestido">Vestido</option>
+          <option value="blusa">Blusa</option>
+          <option value="conjunto">Conjunto</option>
+          <option value="jaqueta">Jaqueta</option>
+          <option value="moda-praia">Moda Praia</option>
+          <option value="acessorio">Acessório</option>
+        </select>
+      </section>
+
+      {/* Filtros contextuais — aparecem de acordo com a categoria selecionada */}
+      {categoryConfig && (
+        <section style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          {categoryConfig.tipos && (
+            <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={{ minWidth: 140 }}>
+              <option value="">Tipo</option>
+              {categoryConfig.tipos.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          )}
+          {categoryConfig.mangas && (
+            <select value={manga} onChange={(e) => setManga(e.target.value)} style={{ minWidth: 130 }}>
+              <option value="">Manga</option>
+              {categoryConfig.mangas.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          )}
+        </section>
+      )}
+
+      <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", marginTop: 8 }}>
+        <select value={size} onChange={(e) => setSize(e.target.value)}>
+          <option value="">Tamanho</option>
+          {["PP","P","M","G","GG","XGG","36","38","40","42","44","46","48"].map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <select value={color} onChange={(e) => setColor(e.target.value)}>
+          <option value="">Cor</option>
+          {["Azul","Vermelho","Preto","Branco","Amarelo","Verde","Rosa","Cinza","Marrom","Bege","Laranja","Roxo","Vinho"].map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <select value={fabric} onChange={(e) => setFabric(e.target.value)}>
+          <option value="">Tecido</option>
+          {["Algodão","Poliéster","Viscose","Malha","Jeans","Linho","Seda","Spandex","Moletom","Denim"].map((f) => (
+            <option key={f} value={f}>{f}</option>
+          ))}
+        </select>
       </section>
 
       <section style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -330,6 +437,53 @@ export default function PortalCentralPage() {
             )}
 
             <button onClick={runOrder} disabled={loading} style={{ marginTop: 8 }}>Criar Pedido</button>
+          </div>
+
+          {/* Importação de catálogo CSV */}
+          <div style={{ marginTop: 20, borderTop: "1px solid #eee", paddingTop: 16 }}>
+            <h2 style={{ fontSize: 18, marginBottom: 4 }}>Importar Catálogo de Produtos</h2>
+            <p style={{ fontSize: 13, color: "#666", marginTop: 0, marginBottom: 8 }}>
+              Atualize seus produtos em tempo real via CSV. Produtos existentes (mesmo SKU) serão atualizados; novos serão criados.
+            </p>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setCatalogFile(e.target.files?.[0] ?? null)}
+                style={{ fontSize: 13 }}
+              />
+              <button
+                onClick={runCatalogImport}
+                disabled={catalogImportLoading || !catalogFile}
+                style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", cursor: "pointer" }}
+              >
+                {catalogImportLoading ? "Importando..." : "📥 Importar CSV"}
+              </button>
+              <a
+                href={catalogTemplateUrl()}
+                download="catalogo_modelo.csv"
+                style={{ fontSize: 13, color: "#1a73e8" }}
+              >
+                Baixar modelo CSV
+              </a>
+            </div>
+
+            {catalogImportResult && (
+              <div style={{ marginTop: 10, padding: 12, background: catalogImportResult.errors_count > 0 ? "#fffbeb" : "#f0fdf4", borderRadius: 8, fontSize: 13 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{catalogImportResult.message}</div>
+                <div>✅ Produtos criados: <strong>{catalogImportResult.created_products}</strong></div>
+                <div>🔄 Produtos atualizados: <strong>{catalogImportResult.updated_products}</strong></div>
+                <div>📦 Variantes criadas: <strong>{catalogImportResult.created_variants}</strong></div>
+                {catalogImportResult.errors_count > 0 && (
+                  <div style={{ marginTop: 8, color: "#b45309" }}>
+                    <div>⚠️ Erros ({catalogImportResult.errors_count}):</div>
+                    {catalogImportResult.errors.map((e) => (
+                      <div key={e.row} style={{ fontSize: 12, paddingLeft: 8 }}>Linha {e.row}: {e.error}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
