@@ -290,16 +290,18 @@ def portal_search(
     q: str | None = None,
     city: str | None = None,
     category: str | None = None,
+    size: str | None = None,
+    color: str | None = None,
+    fabric: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    _user=Depends(require_roles("admin", "fabrica", "lojista", "cliente")),
     db: Session = Depends(get_db),
 ):
     companies_q = db.query(Company).filter(Company.is_active == True)
     products_q = db.query(Product).filter(Product.is_active == True)
 
     if city:
-        companies_q = companies_q.filter(Company.city == city)
+        companies_q = companies_q.filter(Company.city.ilike(f"%{city}%"))
     if q:
         companies_q = companies_q.filter(
             or_(Company.trade_name.ilike(f"%{q}%"), Company.neighborhood.ilike(f"%{q}%"))
@@ -313,9 +315,23 @@ def portal_search(
     companies = companies_q.offset(offset).limit(limit).all()
     products = products_q.offset(offset).limit(limit).all()
 
+    product_ids = [p.id for p in products]
+    variants_q = db.query(ProductVariant).filter(ProductVariant.product_id.in_(product_ids))
+    if size:
+        variants_q = variants_q.filter(ProductVariant.size_label.ilike(f"%{size}%"))
+    if color:
+        variants_q = variants_q.filter(ProductVariant.color_name.ilike(f"%{color}%"))
+    if fabric:
+        variants_q = variants_q.filter(ProductVariant.fabric_type.ilike(f"%{fabric}%"))
+    variants = variants_q.limit(100).all()
+
     return {
+        "companies_count": len(companies),
+        "products_count": len(products),
+        "variants_count": len(variants),
         "companies": [row_to_dict(c) for c in companies],
         "products": [row_to_dict(p) for p in products],
+        "variants": [row_to_dict(v) for v in variants],
     }
 
 
