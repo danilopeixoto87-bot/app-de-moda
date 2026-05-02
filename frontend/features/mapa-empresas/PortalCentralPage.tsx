@@ -77,24 +77,80 @@ export default function PortalCentralPage() {
     [query, city, category, tipo, manga, size, color, fabric]
   );
 
-  const CATEGORY_FILTERS: Record<string, { tipos?: string[]; mangas?: string[] }> = {
+  const ALL_COLORS = [
+    "Preto", "Branco", "Azul", "Cinza", "Vermelho", "Verde", "Rosa",
+    "Amarelo", "Bege", "Marrom", "Vinho", "Azul Marinho", "Laranja",
+    "Roxo", "Nude", "Coral", "Khaki", "Turquesa", "Dourado", "Off-white",
+  ];
+
+  const ALL_FABRICS = [
+    "Algodão", "Poliéster", "Viscose", "Malha", "Denim/Jeans",
+    "Linho", "Moletom", "Dry Fit", "Couro Sintético", "Spandex",
+  ];
+
+  const CATEGORY_FILTERS: Record<string, {
+    label: string;
+    tipos?: string[];
+    mangas?: string[];
+    fabrics?: string[];
+    sizes?: string[];
+  }> = {
     camisa: {
-      tipos: ["Polo", "Social", "Regata", "Henley", "Manga Longa"],
-      mangas: ["Curta", "Longa"],
+      label: "Camisa",
+      tipos: ["Polo", "Social", "Regata", "Camiseta", "Henley", "Gola V", "Gola Careca", "Manga Longa", "Flanela", "Xadrez"],
+      mangas: ["Curta", "Longa", "Sem Manga", "3/4"],
+      fabrics: ["Algodão", "Poliéster", "Dry Fit", "Viscose", "Linho", "Oxford", "Malha", "Jersey", "Flanela"],
+      sizes: ["PP", "P", "M", "G", "GG", "XGG", "2XGG"],
     },
     calca: {
-      tipos: ["Jeans Reto", "Skinny", "Moletom", "Cargo", "Social"],
+      label: "Calça",
+      tipos: ["Jeans Reto", "Skinny", "Slim", "Wide Leg", "Flare", "Jogger", "Cargo", "Social", "Legging", "Cigarrete"],
+      fabrics: ["Denim/Jeans", "Sarja", "Moletom", "Viscose", "Alfaiataria", "Linho", "Couro Sintético", "Bengaline"],
+      sizes: ["36", "38", "40", "42", "44", "46", "48", "P", "M", "G", "GG"],
+    },
+    bermuda: {
+      label: "Bermuda / Short",
+      tipos: ["Jeans", "Moletom", "Sarja", "Social", "Dry Fit", "Tactel", "Surf", "Ciclista"],
+      fabrics: ["Denim/Jeans", "Moletom", "Sarja", "Tactel", "Dry Fit", "Linho", "Poliéster"],
+      sizes: ["36", "38", "40", "42", "44", "46", "P", "M", "G", "GG"],
     },
     vestido: {
-      tipos: ["Longo", "Curto", "Midi", "Festa"],
+      label: "Vestido",
+      tipos: ["Longo", "Curto", "Midi", "Festa", "Casual", "Evasê", "Tubinho", "Envelope", "Ombro a Ombro", "Chemise"],
+      fabrics: ["Viscose", "Chiffon", "Malha", "Linho", "Seda", "Crepe", "Jacquard", "Cetim", "Renda"],
+      sizes: ["PP", "P", "M", "G", "GG", "XGG", "36", "38", "40", "42", "44"],
     },
     blusa: {
-      tipos: ["Cropped", "Ciganinha", "Regata", "Social"],
-      mangas: ["Curta", "Longa", "Sem Manga"],
+      label: "Blusa",
+      tipos: ["Cropped", "Ciganinha", "Regata", "Camiseta", "Alcinha", "Blusão", "Estampada", "Listrada", "Decote V"],
+      mangas: ["Curta", "Longa", "Sem Manga", "3/4", "Bufante"],
+      fabrics: ["Algodão", "Viscose", "Malha", "Poliéster", "Linho", "Seda", "Dry Fit", "Chiffon"],
+      sizes: ["PP", "P", "M", "G", "GG", "XGG"],
+    },
+    conjunto: {
+      label: "Conjunto",
+      tipos: ["Fitness", "Moletom", "Social", "Praia", "Pijama", "Jogger", "Alfaiataria", "Ciclismo"],
+      fabrics: ["Malha", "Dry Fit", "Spandex", "Viscose", "Algodão", "Moletom", "Poliamida"],
+      sizes: ["PP", "P", "M", "G", "GG", "XGG"],
     },
     jaqueta: {
-      tipos: ["Jeans", "Couro", "Moletom", "Puffer"],
+      label: "Jaqueta / Casaco",
+      tipos: ["Jeans", "Couro", "Moletom", "Puffer", "Corta-vento", "Bomber", "Trench Coat", "Sobretudo", "Cardigã"],
       mangas: ["Longa"],
+      fabrics: ["Denim/Jeans", "Couro Sintético", "Nylon", "Veludo", "Moletom", "Lã", "Poliéster", "Sherpa"],
+      sizes: ["PP", "P", "M", "G", "GG", "XGG"],
+    },
+    "moda-praia": {
+      label: "Moda Praia",
+      tipos: ["Biquíni", "Maiô", "Sunga", "Bermuda Surf", "Saída de Praia", "Top Fitness", "Canga", "Conjunto Praia"],
+      fabrics: ["Lycra", "Poliamida", "Dry Fit", "Nylon", "Tactel"],
+      sizes: ["PP", "P", "M", "G", "GG", "36", "38", "40", "42", "44"],
+    },
+    acessorio: {
+      label: "Acessório",
+      tipos: ["Bolsa", "Carteira", "Cinto", "Boné / Chapéu", "Óculos", "Relógio", "Colar", "Brinco", "Pulseira", "Mochila"],
+      fabrics: ["Couro", "Couro Sintético", "Lona", "Palha", "Metal", "Tecido", "Madeira"],
+      sizes: ["Único", "P", "M", "G"],
     },
   };
 
@@ -102,6 +158,8 @@ export default function PortalCentralPage() {
     category.toLowerCase().includes(k)
   );
   const categoryConfig = activeCategoryKey ? CATEGORY_FILTERS[activeCategoryKey] : null;
+  const activeSizes = categoryConfig?.sizes ?? ["PP", "P", "M", "G", "GG", "XGG", "36", "38", "40", "42", "44", "46", "48", "Único"];
+  const activeFabrics = categoryConfig?.fabrics ?? ALL_FABRICS;
 
   async function runLogin() {
     setError("");
@@ -347,19 +405,19 @@ export default function PortalCentralPage() {
       <section style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", marginTop: 8 }}>
         <select value={size} onChange={(e) => setSize(e.target.value)}>
           <option value="">Tamanho</option>
-          {["PP","P","M","G","GG","XGG","36","38","40","42","44","46","48"].map((s) => (
+          {activeSizes.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
         <select value={color} onChange={(e) => setColor(e.target.value)}>
           <option value="">Cor</option>
-          {["Azul","Vermelho","Preto","Branco","Amarelo","Verde","Rosa","Cinza","Marrom","Bege","Laranja","Roxo","Vinho"].map((c) => (
+          {ALL_COLORS.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
         <select value={fabric} onChange={(e) => setFabric(e.target.value)}>
           <option value="">Tecido</option>
-          {["Algodão","Poliéster","Viscose","Malha","Jeans","Linho","Seda","Spandex","Moletom","Denim"].map((f) => (
+          {activeFabrics.map((f) => (
             <option key={f} value={f}>{f}</option>
           ))}
         </select>

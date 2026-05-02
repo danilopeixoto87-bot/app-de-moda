@@ -72,10 +72,11 @@ DEPLOY EM PRODUÇÃO
 |---|---|---|---|
 | A1 | Redesign cards de produto | Imagem 3:4, preço destacado, badge "Menor preço", rating em estrelas | 🔍 A validar |
 | A2 | Busca com resultados em tempo real | Debounce 300ms + skeleton loading | 🔍 A validar |
-| A3 | Filtros em chips horizontais | Mobile-first: cidade, categoria, faixa de preço | 🔍 A validar |
+| A3 | Filtros contextuais com opções pré-definidas | Por categoria: tipos completos (10+/cat), 20 cores, 8–9 tecidos por categoria, tamanhos por produto | ✅ Implementado |
 | A4 | Tela de comparação de preços | Side-by-side do mesmo produto em lojas diferentes | 🔍 A validar |
 | A5 | Header da loja com capa e foto | Banner + logo da empresa na página /loja/[id] | 🔍 A validar |
 | A6 | Modo escuro | CSS variables para tema dark/light | 🔍 A validar |
+| A7 | Filtros em chips visuais (próximo passo do A3) | Transformar selects em chips clicáveis com scroll horizontal mobile-first | 🔍 A validar |
 
 ### SPRINT B — Motor de Comparação de Preços
 > Impacto: Alto | Custo: Médio | IA responsável: Cerebras + Claude

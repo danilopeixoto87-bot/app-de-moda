@@ -31,11 +31,28 @@
 - **Critérios:** Não dispara mais de 1 req/300ms, UX não trava
 - **IA:** Copilot sugere hook → Claude revisa
 
-### A3 — Filtros em Chips Horizontais (já iniciado ✅)
-- **O que:** Filtros contextuais mobile-first — Cidade, Categoria, Tipo, Manga, Cor, Tamanho, Tecido
-- **Status:** Implementado com `select` contextual; próximo passo → transformar em chips visuais
-- **Como:** Componente `FilterChips.tsx` com scroll horizontal em mobile
-- **IA:** Claude implementa direto (lógica já validada)
+### A3 — Filtros Contextuais com Opções Pré-definidas ✅ IMPLEMENTADO
+- **O que:** Cada categoria exibe os filtros que fazem sentido, com opções pré-carregadas para agilizar escolha
+- **Cobertura:**
+  - **Camisa** → 10 tipos (Polo, Social, Regata, Camiseta, Henley, Gola V, Gola Careca, Manga Longa, Flanela, Xadrez) + 4 mangas + 9 tecidos
+  - **Calça** → 10 tipos (Jeans Reto, Skinny, Slim, Wide Leg, Flare, Jogger, Cargo, Social, Legging, Cigarrete) + 8 tecidos + tamanhos numéricos 36–48
+  - **Bermuda/Short** → 8 tipos + 7 tecidos
+  - **Vestido** → 10 tipos (Longo, Curto, Midi, Festa, Casual, Evasê, Tubinho, Envelope, Ombro a Ombro, Chemise) + 9 tecidos
+  - **Blusa** → 9 tipos + 5 opções de manga + 8 tecidos
+  - **Conjunto** → 8 tipos (Fitness, Moletom, Social, Praia, Pijama, Jogger, Alfaiataria, Ciclismo) + 7 tecidos
+  - **Jaqueta/Casaco** → 9 tipos (Jeans, Couro, Moletom, Puffer, Corta-vento, Bomber, Trench Coat, Sobretudo, Cardigã) + 8 tecidos
+  - **Moda Praia** → 8 tipos + 5 tecidos
+  - **Acessório** → 10 tipos (Bolsa, Carteira, Cinto, Boné, Óculos, Relógio, Colar, Brinco, Pulseira, Mochila) + 7 tecidos
+  - **Cores:** 20 mais usadas na moda brasileira (Preto, Branco, Azul, Cinza, Vermelho, Verde, Rosa, Amarelo, Bege, Marrom, Vinho, Azul Marinho, Laranja, Roxo, Nude, Coral, Khaki, Turquesa, Dourado, Off-white)
+  - **Tamanhos:** contextuais por categoria (PP–2XGG para roupas, 36–48 para calças/bermudas, numérico para praia)
+- **Lógica:** Quando nenhuma categoria selecionada, exibe opções genéricas completas; ao selecionar categoria, filtra automaticamente
+- **Status:** ✅ Implementado em 01/05/2026
+
+### A3b — Filtros em Chips Visuais (próximo passo)
+- **O que:** Transformar os `<select>` em chips clicáveis com scroll horizontal (mobile-first)
+- **Como:** Componente `FilterChips.tsx` — chips com cor de fundo quando selecionado, scroll-x no mobile
+- **Critérios:** Funciona em 375px, não esconde opções importantes
+- **IA:** Gemini propõe layout → Claude implementa
 
 ### A4 — Tela de Comparação de Preços
 - **O que:** Side-by-side do mesmo produto em lojas diferentes, preço + rating lado a lado
