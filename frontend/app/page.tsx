@@ -1,30 +1,28 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useState } from "react";
 import PortalCentralPage from "@/features/mapa-empresas/PortalCentralPage";
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://app-de-moda-production.up.railway.app/api";
+const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://app-de-moda-production.up.railway.app/api")
+  .replace(/\/api$/, "");
 
-async function getBackendStatus() {
-  try {
-    const res = await fetch(`${API.replace("/api", "")}/health`, { cache: "no-store" });
-    if (res.ok) {
-      const data = await res.json();
-      return { ok: true, version: data.version ?? "?" };
-    }
-    return { ok: false, version: null };
-  } catch {
-    return { ok: false, version: null };
-  }
-}
+export default function Home() {
+  const [backendOk, setBackendOk] = useState<boolean | null>(null);
 
-export default async function Home() {
-  const status = await getBackendStatus();
+  useEffect(() => {
+    fetch(`${API_ROOT}/health`)
+      .then((r) => setBackendOk(r.ok))
+      .catch(() => setBackendOk(false));
+  }, []);
 
   return (
     <>
-      {/* Status bar — only visible when backend is down */}
-      {!status.ok && (
-        <div style={{ background: "#fef2f2", color: "#b91c1c", padding: "8px 16px", fontSize: 13, textAlign: "center" }}>
-          ⚠️ Backend indisponível no momento
+      {backendOk === false && (
+        <div style={{
+          background: "#fef2f2", color: "#b91c1c",
+          padding: "8px 16px", fontSize: 13, textAlign: "center"
+        }}>
+          Backend indisponível no momento
         </div>
       )}
       <PortalCentralPage />
